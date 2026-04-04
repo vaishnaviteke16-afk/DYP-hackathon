@@ -1,7 +1,20 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { UserPlus, GraduationCap, Building2, Mail, Lock, User, ArrowRight, Upload, Briefcase, Globe } from "lucide-react";export default function Signup() {
-  const [role, setRole] = useState("student");
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
+import { UserPlus, GraduationCap, Building2, Mail, Lock, User, ArrowRight, Upload, Briefcase, Globe } from "lucide-react";
+
+export default function Signup() {
+  const navigate = useNavigate();
+  const { search } = useLocation();
+  const queryParams = new URLSearchParams(search);
+  const initialRole = queryParams.get("role") || "student";
+
+  const [role, setRole] = useState(initialRole);
+
+  useEffect(() => {
+    if (queryParams.get("role")) {
+      setRole(queryParams.get("role"));
+    }
+  }, [search]);
   const [file, setFile] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -13,8 +26,6 @@ import { UserPlus, GraduationCap, Building2, Mail, Lock, User, ArrowRight, Uploa
     companyName: "",
     companyWebsite: ""
   });
-
-  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -85,7 +96,7 @@ import { UserPlus, GraduationCap, Building2, Mail, Lock, User, ArrowRight, Uploa
           Create an Account
         </h2>
         <p className="text-center text-gray-500 mb-8 text-sm">
-          Join VerifiedGigs and start exploring opportunities
+          Join UniHire and start exploring opportunities
         </p>
 
         {/* ROLE SELECT */}

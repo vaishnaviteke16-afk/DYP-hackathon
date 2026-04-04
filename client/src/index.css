@@ -1,2 +1,8 @@
 @import "tailwindcss";
+
+html {
+  font-size: 18px; /* Increased from default 16px for better readability */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
  

@@ -23,6 +23,8 @@ import { Mail, Lock, ArrowRight, UserCircle } from "lucide-react";export default
 
     localStorage.setItem("token", data.token);
     localStorage.setItem("role", data.role);
+    localStorage.setItem("user", JSON.stringify(data.user)); // 🔥 NEW: STORE COMPLETE USER OBJECT
+    localStorage.setItem("userId", data.user._id); // 🔥 NEW: STORE USER ID DIRECTLY
 
     // 🔥 ROLE BASED REDIRECT
     if (data.role === "student") navigate("/student");
@@ -48,7 +50,7 @@ import { Mail, Lock, ArrowRight, UserCircle } from "lucide-react";export default
           Welcome Back
         </h2>
         <p className="text-center text-gray-500 mb-8 text-sm">
-          Sign in to access your VerifiedGigs account
+          Sign in to access your UniHire account
         </p>
 
         <div className="space-y-4">

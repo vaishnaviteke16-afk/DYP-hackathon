@@ -24,8 +24,15 @@ export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("all");
+  const [removingId, setRemovingId] = useState(null);
+  const [verifyingId, setVerifyingId] = useState(null);
+  const [allJobs, setAllJobs] = useState([]);
+  const [allApplications, setAllApplications] = useState([]);
+  const [activeTab, setActiveTab] = useState("users"); // users, jobs, applications
+  const [loading, setLoading] = useState(false);
 
   const token = localStorage.getItem("token");
+  const authHeader = token ? `Bearer ${token}` : "";
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -36,25 +43,111 @@ export default function AdminDashboard() {
     return `${base} ${location.pathname === path ? active : inactive}`;
   };
 
-  const fetchUsers = () => {
-    fetch("http://localhost:5000/api/auth/users", {
-      headers: { Authorization: token },
-    })
-      .then((res) => res.json())
-      .then((data) => setUsers(Array.isArray(data) ? data : []))
-      .catch(() => setUsers(mockUsers));
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/auth/users", {
+        headers: { Authorization: authHeader },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(Array.isArray(data) ? data : []);
+      } else {
+        setUsers(mockUsers);
+      }
+    } catch (_) {
+      setUsers(mockUsers);
+    }
+  };
+
+  const fetchAllJobs = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/jobs/admin/all", {
+        headers: { Authorization: authHeader },
+      });
+      if (res.ok) {
+        setAllJobs(await res.json());
+      }
+    } catch (_) {}
+  };
+
+  const fetchAllApplications = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/applications/admin/all", {
+        headers: { Authorization: authHeader },
+      });
+      if (res.ok) {
+        setAllApplications(await res.json());
+      }
+    } catch (_) {}
+  };
+
+  const loadAllData = async () => {
+    setLoading(true);
+    await Promise.all([fetchUsers(), fetchAllJobs(), fetchAllApplications()]);
+    setLoading(false);
   };
 
   const verifyUser = async (id) => {
-    await fetch(`http://localhost:5000/api/auth/verify/${id}`, {
-      method: "PUT",
-      headers: { Authorization: token },
-    });
-    fetchUsers();
+    setVerifyingId(id);
+    try {
+      await fetch(`http://localhost:5000/api/auth/verify/${id}`, {
+        method: "PUT",
+        headers: { Authorization: authHeader },
+      });
+      fetchUsers();
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
+  const removeUser = async (id) => {
+    if (!window.confirm("Remove this user permanently?")) return;
+    setRemovingId(id);
+    try {
+      const res = await fetch(`http://localhost:5000/api/auth/users/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: authHeader },
+      });
+      if (res.ok) fetchUsers();
+      else alert("Failed to remove user.");
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  const deleteJob = async (id) => {
+    if (!window.confirm("Delete this job permanently?")) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/jobs/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: authHeader },
+      });
+      if (res.ok) fetchAllJobs();
+    } catch (_) {}
+  };
+
+  const updateAppStatus = async (id, status) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/applications/${id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) fetchAllApplications();
+    } catch (_) {}
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate("/login");
   };
 
   useEffect(() => {
-    fetchUsers();
+    if (!token) { navigate("/login"); return; }
+    loadAllData();
   }, []);
 
   // Mock data used as fallback
@@ -80,7 +173,8 @@ export default function AdminDashboard() {
     { label: "Total Users", value: displayUsers.length, icon: Users, color: "blue" },
     { label: "Students", value: displayUsers.filter((u) => u.role === "student").length, icon: UserCircle, color: "purple" },
     { label: "Clients", value: displayUsers.filter((u) => u.role === "client").length, icon: Briefcase, color: "green" },
-    { label: "Pending Verifications", value: displayUsers.filter((u) => !u.isVerified && u.role === "student").length, icon: Clock, color: "yellow" },
+    { label: "Total Gigs", value: allJobs.length, icon: Briefcase, color: "blue" },
+    { label: "Total Applications", value: allApplications.length, icon: MessageSquare, color: "yellow" },
   ];
 
   const colorMap = {
@@ -103,34 +197,28 @@ export default function AdminDashboard() {
       <div className={`fixed md:static top-0 left-0 h-full w-64 bg-white shadow-xl md:shadow-lg border-r border-gray-100 p-6 transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 transition-transform duration-300 z-50 flex flex-col`}>
 
         <div className="flex justify-between items-center mb-8 md:hidden">
-          <h2 className="text-xl font-black text-red-600 tracking-tight">VerifiedGigs</h2>
+          <h2 className="text-xl font-black text-red-600 tracking-tight">UniHire</h2>
           <X onClick={() => setSidebarOpen(false)} className="cursor-pointer text-gray-500 hover:text-gray-800 transition" size={20} />
         </div>
 
         <div className="hidden md:block mb-10">
-          <h2 className="text-2xl font-black text-red-600 tracking-tight">VerifiedGigs</h2>
-          <p className="text-xs text-gray-400 mt-1 font-medium uppercase tracking-widest">Admin Console</p>
+          <h2 className="text-2xl font-black text-red-600 tracking-tight">UniHire</h2>
+          <p className="text-xs text-gray-400 mt-1 font-medium uppercase tracking-widest text-red-500/60">System Controller</p>
         </div>
 
         <nav className="space-y-1 flex-1">
-          <div onClick={() => navigate("/admin")} className={getLinkClass("/admin")}>
-            <LayoutDashboard size={18} /> Overview
-          </div>
-          <div onClick={() => navigate("/admin/users")} className={getLinkClass("/admin/users")}>
+          <div onClick={() => setActiveTab("users")} className={getLinkClass("/admin") + (activeTab === "users" ? " bg-red-50 text-red-600" : "")}>
             <Users size={18} /> Manage Users
           </div>
-          <div onClick={() => navigate("/admin/verifications")} className={getLinkClass("/admin/verifications")}>
-            <ShieldCheck size={18} /> Verifications
-          </div>
-          <div onClick={() => navigate("/admin/projects")} className={getLinkClass("/admin/projects")}>
+          <div onClick={() => setActiveTab("jobs")} className={getLinkClass("/admin/projects") + (activeTab === "jobs" ? " bg-red-50 text-red-600" : "")}>
             <Briefcase size={18} /> All Projects
           </div>
-          <div onClick={() => navigate("/admin/messages")} className={getLinkClass("/admin/messages")}>
-            <MessageSquare size={18} /> Messages
+          <div onClick={() => setActiveTab("applications")} className={getLinkClass("/admin/messages") + (activeTab === "applications" ? " bg-red-50 text-red-600" : "")}>
+            <MessageSquare size={18} /> All Applications
           </div>
         </nav>
 
-        <button className="flex items-center gap-3 p-3 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors text-sm font-medium mt-auto">
+        <button onClick={handleLogout} className="flex items-center gap-3 p-3 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors text-sm font-medium mt-auto">
           <LogOut size={18} /> Logout
         </button>
       </div>
@@ -201,101 +289,93 @@ export default function AdminDashboard() {
                 <span className="font-bold">{filteredUsers.filter(u => !u.isVerified && u.role === "student").length} students</span> are waiting for verification. Review and approve them below.
               </p>
             </div>
-          )}
-
-          {/* Users Table */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {/* Table Header */}
-            <div className="p-6 border-b border-gray-50">
-              <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
-                <h3 className="text-xl font-bold text-gray-900">All Users</h3>
-                <div className="flex gap-2 w-full sm:w-auto">
-                  {/* Search */}
-                  <div className="relative flex-1 sm:flex-none">
-                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search users..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="w-full sm:w-52 pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    />
-                  </div>
-                  {/* Filter */}
-                  <div className="relative">
-                    <Filter size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <select
-                      value={filterRole}
-                      onChange={(e) => setFilterRole(e.target.value)}
-                      className="pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer"
-                    >
-                      <option value="all">All Roles</option>
-                      <option value="student">Students</option>
-                      <option value="client">Clients</option>
-                    </select>
+          )}          {/* Dashboard Content Switching */}
+          {activeTab === "users" && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 border-b border-gray-50">
+                <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
+                  <h3 className="text-xl font-bold text-gray-900">All Users</h3>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:flex-none">
+                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input type="text" placeholder="Search users..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full sm:w-52 pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all" />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Users List */}
-            <div className="divide-y divide-gray-50">
-              {filteredUsers.length === 0 ? (
-                <div className="p-12 text-center">
-                  <Users size={40} className="mx-auto text-gray-200 mb-3" />
-                  <p className="text-gray-400 font-medium">No users found.</p>
-                </div>
-              ) : (
-                filteredUsers.map((user) => (
+              <div className="divide-y divide-gray-50">
+                {filteredUsers.map((user) => (
                   <div key={user._id} className="p-5 hover:bg-gray-50/70 transition-colors">
-                    <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
-                      {/* User Info */}
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
                       <div className="flex items-center gap-4">
-                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-lg shrink-0 ${user.role === "student" ? "bg-blue-100 text-blue-600" : user.role === "admin" ? "bg-red-100 text-red-600" : "bg-purple-100 text-purple-600"}`}>
-                          {user.name?.[0]?.toUpperCase() || "?"}
-                        </div>
+                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-lg shrink-0 ${user.role === "student" ? "bg-blue-100 text-blue-600" : "bg-purple-100 text-purple-600"}`}> {user.name?.[0]?.toUpperCase()} </div>
                         <div>
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
                             <p className="font-bold text-gray-900">{user.name}</p>
-                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${roleBadge[user.role] || roleBadge.client}`}>
-                              {user.role}
-                            </span>
-                            {user.isVerified ? (
-                              <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 border border-green-100 text-xs font-bold px-2 py-0.5 rounded-full">
-                                <BadgeCheck size={12} /> Verified
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-yellow-700 bg-yellow-50 border border-yellow-100 text-xs font-bold px-2 py-0.5 rounded-full">
-                                <Clock size={12} /> Pending
-                              </span>
-                            )}
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${roleBadge[user.role]}`}>{user.role}</span>
                           </div>
-                          <p className="text-gray-400 text-sm mt-0.5">{user.email}</p>
-                          {user.college && <p className="text-gray-400 text-xs mt-0.5">{user.college}</p>}
-                          {user.company && <p className="text-gray-400 text-xs mt-0.5">{user.company}</p>}
+                          <p className="text-gray-400 text-sm">{user.email}</p>
                         </div>
                       </div>
-
-                      {/* Actions */}
                       <div className="flex items-center gap-2">
                         {user.role === "student" && !user.isVerified && (
-                          <button
-                            onClick={() => verifyUser(user._id)}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-green-500/30 transition-all"
-                          >
-                            <CheckCircle size={15} /> Verify
-                          </button>
+                          <button onClick={() => verifyUser(user._id)} className="px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-xl">Verify</button>
                         )}
-                        <button className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-all">
-                          <XCircle size={15} /> Remove
-                        </button>
+                        <button onClick={() => removeUser(user._id)} className="px-3 py-2 bg-red-50 text-red-600 text-sm font-semibold rounded-xl">Remove</button>
                       </div>
                     </div>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {activeTab === "jobs" && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 border-b border-gray-50">
+                <h3 className="text-xl font-bold text-gray-900">All Projects</h3>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {allJobs.map((job) => (
+                  <div key={job._id} className="p-5 hover:bg-gray-50/70 transition-colors">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h4 className="font-bold text-gray-900">{job.title}</h4>
+                        <p className="text-gray-400 text-sm">Posted by: {job.postedBy?.name || "Unknown"}</p>
+                        <p className="text-gray-500 text-sm mt-1">{job.description.substring(0, 100)}...</p>
+                      </div>
+                      <button onClick={() => deleteJob(job._id)} className="p-2 bg-red-50 text-red-600 rounded-xl"><XCircle size={18} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "applications" && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 border-b border-gray-50">
+                <h3 className="text-xl font-bold text-gray-900">All Applications</h3>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {allApplications.map((app) => (
+                  <div key={app._id} className="p-5 hover:bg-gray-50/70 transition-colors">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h4 className="font-bold text-gray-900">{app.job?.title || "Removed Job"}</h4>
+                        <p className="text-gray-400 text-sm">Applicant: {app.student?.name} ({app.student?.email})</p>
+                        <p className={`text-xs font-bold mt-1 px-2 py-0.5 rounded-full inline-block ${app.status === 'accepted' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>{app.status}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => updateAppStatus(app._id, "accepted")} className="p-2 bg-green-50 text-green-600 rounded-xl"><CheckCircle size={18} /></button>
+                        <button onClick={() => updateAppStatus(app._id, "rejected")} className="p-2 bg-red-50 text-red-600 rounded-xl"><XCircle size={18} /></button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
