@@ -3,5 +3,6 @@ dist/
 build/
 .env
 .env.local
-uploads/
+server/uploads/*
+!server/uploads/.gitkeep
 .DS_Store
